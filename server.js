@@ -98,6 +98,17 @@ db.exec(`
 `);
 
 // ============================================================
+// Process Crash Guards
+// ============================================================
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception intercepted to keep server running:', err.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️ Unhandled Rejection intercepted to keep server running:', reason?.message || reason);
+});
+
+// ============================================================
 // WhatsApp Client
 // ============================================================
 let whatsappClient = null;
@@ -106,19 +117,38 @@ let clientStatus = 'disconnected'; // disconnected, qr_pending, authenticated, r
 let clientInfo = null;
 
 function initWhatsApp() {
+  if (whatsappClient) {
+    try {
+      whatsappClient.destroy().catch(() => {});
+    } catch (_) {}
+    whatsappClient = null;
+  }
+
   whatsappClient = new Client({
     authStrategy: new LocalAuth({ dataPath: path.join(__dirname, '.wwebjs_auth') }),
     puppeteer: {
       headless: true,
       executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-extensions'
+      ]
     }
   });
 
   whatsappClient.on('qr', async (qr) => {
     console.log('📱 QR Code received. Scan it with WhatsApp!');
-    qrCodeData = await qrcode.toDataURL(qr);
-    clientStatus = 'qr_pending';
+    try {
+      qrCodeData = await qrcode.toDataURL(qr);
+      clientStatus = 'qr_pending';
+    } catch (e) {
+      console.error('Error generating QR code data URL:', e.message);
+    }
   });
 
   whatsappClient.on('authenticated', () => {
@@ -147,9 +177,18 @@ function initWhatsApp() {
     clientStatus = 'disconnected';
     qrCodeData = null;
     clientInfo = null;
+    // Attempt automatic reconnect after 5 seconds
+    setTimeout(() => {
+      console.log('🔄 Reinitializing WhatsApp client...');
+      initWhatsApp();
+    }, 5000);
   });
 
-  whatsappClient.initialize();
+  whatsappClient.initialize().catch(err => {
+    console.error('WhatsApp initialize error:', err.message);
+    console.log('🔄 Re-attempting WhatsApp initialization in 4 seconds...');
+    setTimeout(() => initWhatsApp(), 4000);
+  });
 }
 
 async function getWhatsAppContacts() {
