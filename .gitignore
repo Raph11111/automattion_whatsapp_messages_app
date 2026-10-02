@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# WhatsApp session and credentials (contains active locks & sensitive data)
+.wwebjs_auth/
+
+# Database files
+whatsapp_scheduler.db
+whatsapp_scheduler.db-shm
+whatsapp_scheduler.db-wal
+*.db
+*.sqlite
+
+# Uploads directory
+uploads/*
+!uploads/.gitkeep
+
+# Environment and logs
+.env
+*.log

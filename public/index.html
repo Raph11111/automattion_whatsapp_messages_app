@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="WhatsApp Message Scheduler - Programmez vos messages WhatsApp automatiquement">
+  <title>WA Scheduler — Programmateur de Messages WhatsApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <span class="material-icons-round">schedule_send</span>
+        </div>
+        <div class="brand-text">
+          <h1>WA Scheduler</h1>
+          <span class="brand-subtitle">Message Automation</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-page="dashboard" id="nav-dashboard">
+          <span class="material-icons-round">dashboard</span>
+          <span>Tableau de bord</span>
+        </a>
+        <a href="#" class="nav-item" data-page="compose" id="nav-compose">
+          <span class="material-icons-round">edit_note</span>
+          <span>Nouveau message</span>
+        </a>
+        <a href="#" class="nav-item" data-page="scheduled" id="nav-scheduled">
+          <span class="material-icons-round">pending_actions</span>
+          <span>Messages programmés</span>
+        </a>
+        <a href="#" class="nav-item" data-page="contacts" id="nav-contacts">
+          <span class="material-icons-round">contacts</span>
+          <span>Contacts & Groupes</span>
+        </a>
+        <a href="#" class="nav-item" data-page="lists" id="nav-lists">
+          <span class="material-icons-round">groups</span>
+          <span>Listes de diffusion</span>
+        </a>
+        <a href="#" class="nav-item" data-page="logs" id="nav-logs">
+          <span class="material-icons-round">history</span>
+          <span>Historique</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-status" id="connectionStatus">
+          <div class="status-dot disconnected" id="statusDot"></div>
+          <span id="statusText">Déconnecté</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="main-header">
+        <button class="sidebar-toggle" id="sidebarToggle">
+          <span class="material-icons-round">menu</span>
+        </button>
+        <div class="header-right">
+          <div class="wa-status-badge" id="waStatusBadge">
+            <span class="material-icons-round">phone_android</span>
+            <span id="waStatusText">Non connecté</span>
+          </div>
+          <button class="btn btn-ghost" id="btnConnectWA" title="Gérer la connexion WhatsApp">
+            <span class="material-icons-round">qr_code_2</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Pages -->
+      <div class="page-container">
+
+        <!-- Dashboard Page -->
+        <section class="page active" id="page-dashboard">
+          <div class="page-header">
+            <h2>Tableau de bord</h2>
+            <p class="page-subtitle">Vue d'ensemble de votre activité</p>
+          </div>
+
+          <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+              <div class="stat-icon" style="--accent: #06d6a0;">
+                <span class="material-icons-round">send</span>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="statTotalSent">0</span>
+                <span class="stat-label">Messages envoyés</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="--accent: #118ab2;">
+                <span class="material-icons-round">schedule</span>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="statPending">0</span>
+                <span class="stat-label">En attente</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="--accent: #7209b7;">
+                <span class="material-icons-round">loop</span>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="statActive">0</span>
+                <span class="stat-label">Récurrents actifs</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon" style="--accent: #ef476f;">
+                <span class="material-icons-round">error_outline</span>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value" id="statErrors">0</span>
+                <span class="stat-label">Erreurs</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card recent-messages">
+              <div class="card-header">
+                <h3>Dernières activités</h3>
+                <button class="btn btn-ghost btn-sm" onclick="navigateTo('logs')">Voir tout</button>
+              </div>
+              <div class="card-body" id="recentLogs">
+                <div class="empty-state-sm">
+                  <span class="material-icons-round">inbox</span>
+                  <p>Aucune activité récente</p>
+                </div>
+              </div>
+            </div>
+            <div class="card upcoming-messages">
+              <div class="card-header">
+                <h3>Prochains envois</h3>
+                <button class="btn btn-ghost btn-sm" onclick="navigateTo('scheduled')">Voir tout</button>
+              </div>
+              <div class="card-body" id="upcomingMessages">
+                <div class="empty-state-sm">
+                  <span class="material-icons-round">event_available</span>
+                  <p>Aucun envoi programmé</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Compose Page -->
+        <section class="page" id="page-compose">
+          <div class="page-header">
+            <h2>Nouveau message</h2>
+            <p class="page-subtitle">Créez et programmez un nouveau message</p>
+          </div>
+
+          <form class="compose-form" id="composeForm">
+            <!-- Message Type Selection -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Type de message</h3>
+              </div>
+              <div class="card-body">
+                <div class="type-selector">
+                  <label class="type-option active" data-type="text" id="typeText">
+                    <input type="radio" name="msgType" value="text" checked>
+                    <span class="material-icons-round">chat</span>
+                    <span>Texte</span>
+                  </label>
+                  <label class="type-option" data-type="media" id="typeMedia">
+                    <input type="radio" name="msgType" value="media">
+                    <span class="material-icons-round">image</span>
+                    <span>Média</span>
+                  </label>
+                  <label class="type-option" data-type="text_media" id="typeTextMedia">
+                    <input type="radio" name="msgType" value="text_media">
+                    <span class="material-icons-round">perm_media</span>
+                    <span>Texte + Média</span>
+                  </label>
+                  <label class="type-option" data-type="poll" id="typePoll">
+                    <input type="radio" name="msgType" value="poll">
+                    <span class="material-icons-round">poll</span>
+                    <span>Sondage</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Message Content -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Contenu</h3>
+              </div>
+              <div class="card-body">
+                <!-- Text Content -->
+                <div class="form-group" id="textGroup">
+                  <label for="textContent">Message</label>
+                  <textarea id="textContent" rows="5" placeholder="Tapez votre message ici...&#10;&#10;Vous pouvez utiliser le formatage WhatsApp :&#10;*gras*  _italique_  ~barré~  ```code```"></textarea>
+                  <div class="char-count"><span id="charCount">0</span> caractères</div>
+                </div>
+
+                <!-- Media Upload -->
+                <div class="form-group hidden" id="mediaGroup">
+                  <label for="mediaFile">Fichier média</label>
+                  <div class="file-dropzone" id="fileDropzone">
+                    <span class="material-icons-round">cloud_upload</span>
+                    <p>Glissez-déposez votre fichier ici</p>
+                    <p class="dropzone-hint">ou cliquez pour parcourir</p>
+                    <input type="file" id="mediaFile" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" hidden>
+                  </div>
+                  <div class="file-preview hidden" id="filePreview">
+                    <div class="preview-info">
+                      <span class="material-icons-round" id="fileIcon">insert_drive_file</span>
+                      <div>
+                        <span class="file-name" id="fileName"></span>
+                        <span class="file-size" id="fileSize"></span>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-sm btn-danger" id="removeFile">
+                      <span class="material-icons-round">close</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Poll Content -->
+                <div class="form-group hidden" id="pollGroup">
+                  <label for="pollTitle">Question du sondage</label>
+                  <input type="text" id="pollTitle" placeholder="Ex: Quel jour préférez-vous pour la réunion ?">
+                  
+                  <label style="margin-top: 1rem;">Options du sondage</label>
+                  <div id="pollOptions">
+                    <div class="poll-option-row">
+                      <input type="text" class="poll-option-input" placeholder="Option 1">
+                      <button type="button" class="btn btn-ghost btn-sm btn-danger remove-poll-option" style="visibility: hidden;">
+                        <span class="material-icons-round">close</span>
+                      </button>
+                    </div>
+                    <div class="poll-option-row">
+                      <input type="text" class="poll-option-input" placeholder="Option 2">
+                      <button type="button" class="btn btn-ghost btn-sm btn-danger remove-poll-option" style="visibility: hidden;">
+                        <span class="material-icons-round">close</span>
+                      </button>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-sm" id="addPollOption">
+                    <span class="material-icons-round">add</span> Ajouter une option
+                  </button>
+                  <div class="checkbox-group" style="margin-top: 1rem;">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="pollAllowMultiple">
+                      <span>Permettre plusieurs réponses</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recipients -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Destinataires</h3>
+              </div>
+              <div class="card-body">
+                <div class="recipient-tabs">
+                  <button type="button" class="tab-btn active" data-tab="manual" id="tabManual">Saisie manuelle</button>
+                  <button type="button" class="tab-btn" data-tab="contacts" id="tabContacts">Contacts</button>
+                  <button type="button" class="tab-btn" data-tab="list" id="tabList">Liste de diffusion</button>
+                </div>
+                
+                <div class="tab-content active" id="tabContentManual">
+                  <div class="form-group">
+                    <label for="manualRecipients">Numéros de téléphone</label>
+                    <textarea id="manualRecipients" rows="3" placeholder="Entrez les numéros (format international, un par ligne)&#10;Ex:&#10;33612345678&#10;33698765432"></textarea>
+                    <span class="form-hint">Format international sans le + (ex: 33612345678 pour la France)</span>
+                  </div>
+                </div>
+
+                <div class="tab-content" id="tabContentContacts">
+                  <div class="form-group">
+                    <div class="search-input">
+                      <span class="material-icons-round">search</span>
+                      <input type="text" id="contactSearch" placeholder="Rechercher un contact ou groupe...">
+                    </div>
+                    <div class="contact-select-list" id="contactSelectList">
+                      <!-- Filled dynamically -->
+                    </div>
+                  </div>
+                </div>
+
+                <div class="tab-content" id="tabContentList">
+                  <div class="form-group">
+                    <label for="selectedList">Choisir une liste de diffusion</label>
+                    <select id="selectedList">
+                      <option value="">-- Sélectionnez une liste --</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="selected-recipients" id="selectedRecipients">
+                  <span class="recipients-count"><span id="recipientCount">0</span> destinataire(s) sélectionné(s)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Scheduling -->
+            <div class="card">
+              <div class="card-header">
+                <h3>Programmation</h3>
+              </div>
+              <div class="card-body">
+                <div class="schedule-selector">
+                  <label class="schedule-option active" data-schedule="now" id="schedNow">
+                    <input type="radio" name="scheduleType" value="now" checked>
+                    <span class="material-icons-round">send</span>
+                    <div>
+                      <span class="schedule-title">Envoyer maintenant</span>
+                      <span class="schedule-desc">Envoi immédiat</span>
+                    </div>
+                  </label>
+                  <label class="schedule-option" data-schedule="once" id="schedOnce">
+                    <input type="radio" name="scheduleType" value="once">
+                    <span class="material-icons-round">event</span>
+                    <div>
+                      <span class="schedule-title">Programmer</span>
+                      <span class="schedule-desc">Envoi unique à une date précise</span>
+                    </div>
+                  </label>
+                  <label class="schedule-option" data-schedule="recurring" id="schedRecurring">
+                    <input type="radio" name="scheduleType" value="recurring">
+                    <span class="material-icons-round">event_repeat</span>
+                    <div>
+                      <span class="schedule-title">Récurrent</span>
+                      <span class="schedule-desc">Répéter selon un horaire</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="schedule-config hidden" id="onceConfig">
+                  <div class="form-group">
+                    <label for="scheduleDatetime">Date et heure d'envoi</label>
+                    <input type="datetime-local" id="scheduleDatetime">
+                  </div>
+                </div>
+
+                <div class="schedule-config hidden" id="recurringConfig">
+                  <div class="form-group">
+                    <label>Fréquence</label>
+                    <div class="cron-builder">
+                      <select id="cronPreset">
+                        <option value="">Personnalisé</option>
+                        <option value="*/5 * * * *">Toutes les 5 minutes</option>
+                        <option value="0 * * * *">Toutes les heures</option>
+                        <option value="0 8 * * *">Tous les jours à 8h</option>
+                        <option value="0 9 * * 1-5">Du lundi au vendredi à 9h</option>
+                        <option value="0 10 * * 1">Tous les lundis à 10h</option>
+                        <option value="0 8 1 * *">Le 1er du mois à 8h</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="cronExpression">Expression Cron</label>
+                    <input type="text" id="cronExpression" placeholder="*/30 * * * * (toutes les 30 min)">
+                    <span class="form-hint" id="cronHint">Format: minute heure jour_du_mois mois jour_de_la_semaine</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="form-actions">
+              <button type="button" class="btn btn-outline" id="btnResetForm">
+                <span class="material-icons-round">restart_alt</span> Réinitialiser
+              </button>
+              <button type="submit" class="btn btn-primary btn-lg" id="btnSubmitMessage">
+                <span class="material-icons-round">schedule_send</span>
+                <span id="submitBtnText">Envoyer maintenant</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Scheduled Messages Page -->
+        <section class="page" id="page-scheduled">
+          <div class="page-header">
+            <h2>Messages programmés</h2>
+            <p class="page-subtitle">Gérez vos messages en attente et récurrents</p>
+          </div>
+
+          <div class="filter-bar">
+            <div class="filter-tabs">
+              <button class="filter-btn active" data-filter="all" id="filterAll">Tous</button>
+              <button class="filter-btn" data-filter="pending" id="filterPending">En attente</button>
+              <button class="filter-btn" data-filter="active" id="filterActive">Récurrents</button>
+              <button class="filter-btn" data-filter="sent" id="filterSent">Envoyés</button>
+              <button class="filter-btn" data-filter="error" id="filterError">Erreurs</button>
+            </div>
+          </div>
+
+          <div class="messages-list" id="scheduledList">
+            <div class="empty-state">
+              <span class="material-icons-round">event_available</span>
+              <h3>Aucun message programmé</h3>
+              <p>Créez votre premier message programmé !</p>
+              <button class="btn btn-primary" onclick="navigateTo('compose')">
+                <span class="material-icons-round">add</span> Créer un message
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Contacts Page -->
+        <section class="page" id="page-contacts">
+          <div class="page-header">
+            <div>
+              <h2>Contacts & Groupes</h2>
+              <p class="page-subtitle">Gérez vos contacts et groupes WhatsApp</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-outline" id="btnSyncGroups">
+                <span class="material-icons-round">sync</span> Synchroniser groupes
+              </button>
+              <button class="btn btn-primary" id="btnAddContact">
+                <span class="material-icons-round">person_add</span> Ajouter
+              </button>
+            </div>
+          </div>
+
+          <div class="contacts-grid" id="contactsGrid">
+            <div class="empty-state">
+              <span class="material-icons-round">contacts</span>
+              <h3>Aucun contact</h3>
+              <p>Ajoutez des contacts ou synchronisez vos groupes WhatsApp</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Contact Lists Page -->
+        <section class="page" id="page-lists">
+          <div class="page-header">
+            <div>
+              <h2>Listes de diffusion</h2>
+              <p class="page-subtitle">Créez des groupes de destinataires pour vos envois</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-primary" id="btnAddList">
+                <span class="material-icons-round">playlist_add</span> Nouvelle liste
+              </button>
+            </div>
+          </div>
+
+          <div class="lists-grid" id="listsGrid">
+            <div class="empty-state">
+              <span class="material-icons-round">groups</span>
+              <h3>Aucune liste de diffusion</h3>
+              <p>Créez une liste pour regrouper vos destinataires</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Logs Page -->
+        <section class="page" id="page-logs">
+          <div class="page-header">
+            <h2>Historique d'envoi</h2>
+            <p class="page-subtitle">Consultez l'historique de tous les envois</p>
+          </div>
+
+          <div class="logs-table-wrapper">
+            <table class="logs-table" id="logsTable">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Destinataire</th>
+                  <th>Type</th>
+                  <th>Aperçu</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody id="logsBody">
+                <tr class="empty-row">
+                  <td colspan="5">
+                    <div class="empty-state-sm">
+                      <span class="material-icons-round">history</span>
+                      <p>Aucun historique disponible</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- QR Modal -->
+  <div class="modal-overlay hidden" id="qrModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Connexion WhatsApp</h3>
+        <button class="btn btn-ghost btn-sm" id="closeQrModal">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+      <div class="modal-body" id="qrModalBody">
+        <div class="qr-container">
+          <div class="qr-placeholder">
+            <span class="material-icons-round spin">hourglass_top</span>
+            <p>En attente du QR code...</p>
+          </div>
+        </div>
+        <p class="qr-instructions">Ouvrez WhatsApp sur votre téléphone → Appareils associés → Associer un appareil → Scannez le QR code</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnReconnect">
+          <span class="material-icons-round">refresh</span> Reconnecter
+        </button>
+        <button class="btn btn-danger" id="btnLogout">
+          <span class="material-icons-round">logout</span> Déconnecter
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Contact Modal -->
+  <div class="modal-overlay hidden" id="contactModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="contactModalTitle">Ajouter un contact</h3>
+        <button class="btn btn-ghost btn-sm close-modal" data-modal="contactModal">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="contactForm">
+          <div class="form-group">
+            <label for="contactName">Nom</label>
+            <input type="text" id="contactName" placeholder="Ex: Jean Dupont" required>
+          </div>
+          <div class="form-group">
+            <label for="contactPhone">Numéro de téléphone</label>
+            <input type="text" id="contactPhone" placeholder="Ex: 33612345678" required>
+            <span class="form-hint">Format international sans le + </span>
+          </div>
+          <input type="hidden" id="contactEditId">
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline close-modal" data-modal="contactModal">Annuler</button>
+        <button class="btn btn-primary" id="btnSaveContact">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add List Modal -->
+  <div class="modal-overlay hidden" id="listModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="listModalTitle">Nouvelle liste de diffusion</h3>
+        <button class="btn btn-ghost btn-sm close-modal" data-modal="listModal">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="listForm">
+          <div class="form-group">
+            <label for="listName">Nom de la liste</label>
+            <input type="text" id="listName" placeholder="Ex: Clients VIP" required>
+          </div>
+          <div class="form-group">
+            <label for="listDesc">Description</label>
+            <input type="text" id="listDesc" placeholder="Ex: Liste de nos meilleurs clients">
+          </div>
+          <div class="form-group">
+            <label>Membres</label>
+            <div class="search-input">
+              <span class="material-icons-round">search</span>
+              <input type="text" id="listContactSearch" placeholder="Rechercher...">
+            </div>
+            <div class="contact-select-list" id="listContactSelectList">
+              <!-- Filled dynamically -->
+            </div>
+          </div>
+          <input type="hidden" id="listEditId">
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline close-modal" data-modal="listModal">Annuler</button>
+        <button class="btn btn-primary" id="btnSaveList">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
