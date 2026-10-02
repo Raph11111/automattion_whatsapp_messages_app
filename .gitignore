@@ -3,6 +3,7 @@ node_modules/
 
 # WhatsApp session and credentials (contains active locks & sensitive data)
 .wwebjs_auth/
+.wwebjs_cache/
 
 # Database files
 whatsapp_scheduler.db

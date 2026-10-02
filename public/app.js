@@ -9,9 +9,38 @@ const API = '';
 // ============================================================
 let contacts = [];
 let contactLists = [];
-let selectedRecipients = new Set();
+let selectedRecipients = new Map(); // id -> { id, name, phone, is_group, group_id }
 let currentFilter = 'all';
+let currentContactTypeFilter = 'all';
+let activeEmojiCategory = 'smileys';
 let statusPollInterval = null;
+
+const EMOJI_DATA = {
+  smileys: [
+    '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩',
+    '😘','😗','😚','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐',
+    '😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢',
+    '🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','😎','🤓','🧐','😕','😟','🙁','😮',
+    '😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓',
+    '😩','😫','🥱','😤','😡','😠','🤬','💀','💩','🤡','👻','👽','🤖'
+  ],
+  gestures: [
+    '👍','👎','👊','✊','🤛','🤜','🤞','✌️','🤟','🤘','👌','🤏','👈','👉','👆','👇',
+    '☝️','✋','🤚','🖐️','🖖','👋','🤙','💪','🙏','🤝','👏','🙌','👐','🤲'
+  ],
+  love: [
+    '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖',
+    '💘','💝','💟','💌','💋','💍','💎'
+  ],
+  party: [
+    '🎉','🎊','🎂','🍰','🧁','🎈','🎁','🎀','🎇','🎆','🥂','🍾','🍻','🍺','🍹','🍸',
+    '🍷','💐','🌹','🌸','🌺','🌻','🌼','🌷','🌟','⭐','✨','⚡','🔥','🌈','☀️','🏖️'
+  ],
+  objects: [
+    '✅','❌','⚠️','ℹ️','🔔','🔕','📢','📣','💬','💭','💯','🎯','🚀','📅','📆','⏰',
+    '⏱️','⏳','💡','📌','📍','🛒','💳','💵','💰','🏆','🥇','🥈','🥉','📞','📧','🔗'
+  ]
+};
 
 // ============================================================
 // Initialization
@@ -246,13 +275,74 @@ function initCompose() {
       btn.classList.add('active');
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById(`tabContent${capitalize(tab)}`).classList.add('active');
+      if (tab === 'contacts') {
+        refreshComposeContacts();
+      }
     });
   });
 
-  // Text character count
+  // Text character count (without limit)
   document.getElementById('textContent').addEventListener('input', (e) => {
     document.getElementById('charCount').textContent = e.target.value.length;
   });
+
+  // Formatting buttons
+  document.querySelectorAll('.toolbar-btn[data-format]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      applyFormatting(btn.dataset.format);
+    });
+  });
+
+  // Emoji Toggle and Close
+  document.getElementById('btnEmojiToggle').addEventListener('click', toggleEmojiPicker);
+  document.getElementById('btnCloseEmojiPicker').addEventListener('click', () => {
+    document.getElementById('emojiPickerPanel').classList.add('hidden');
+  });
+
+  // Quick Emojis
+  document.querySelectorAll('.quick-emoji-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      insertTextAtCursor(btn.textContent.trim());
+    });
+  });
+
+  // Emoji Category Tabs
+  document.querySelectorAll('.emoji-cat-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.emoji-cat-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeEmojiCategory = tab.dataset.cat;
+      renderEmojiGrid(activeEmojiCategory, document.getElementById('emojiSearchInput').value.trim());
+    });
+  });
+
+  // Emoji Search
+  document.getElementById('emojiSearchInput').addEventListener('input', (e) => {
+    renderEmojiGrid(activeEmojiCategory, e.target.value.trim());
+  });
+
+  // Contact Filter Pills in Compose
+  document.querySelectorAll('.contact-filter-pills .pill-btn').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.contact-filter-pills .pill-btn').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentContactTypeFilter = pill.dataset.filter;
+      renderComposeContactItems();
+    });
+  });
+
+  // Select all / Deselect all / Clear in Compose
+  document.getElementById('btnSelectAllContacts').addEventListener('click', selectAllVisibleContacts);
+  document.getElementById('btnDeselectAllContacts').addEventListener('click', deselectAllVisibleContacts);
+  document.getElementById('btnClearRecipients').addEventListener('click', clearAllSelectedRecipients);
+
+  // Sync WhatsApp Contacts button in Compose
+  document.getElementById('btnSyncContacts').addEventListener('click', function() {
+    syncWhatsAppContacts(this);
+  });
+
+  // Initial render of emoji grid
+  renderEmojiGrid('smileys');
 
   // File dropzone
   const dropzone = document.getElementById('fileDropzone');
@@ -295,9 +385,9 @@ function initCompose() {
     }
   });
 
-  // Contact search
-  document.getElementById('contactSearch').addEventListener('input', (e) => {
-    filterContactList('contactSelectList', e.target.value);
+  // Contact search in Compose
+  document.getElementById('contactSearch').addEventListener('input', () => {
+    renderComposeContactItems();
   });
 
   // Form submission
@@ -400,43 +490,237 @@ function addPollOption() {
   container.appendChild(row);
 }
 
-function refreshComposeContacts() {
-  const list = document.getElementById('contactSelectList');
-  list.innerHTML = contacts.map(c => `
-    <div class="contact-select-item ${selectedRecipients.has(c.is_group ? c.group_id : c.phone) ? 'selected' : ''}" 
-         data-id="${c.is_group ? c.group_id : c.phone}"
-         onclick="toggleRecipient(this, '${c.is_group ? c.group_id : c.phone}')">
-      <input type="checkbox" ${selectedRecipients.has(c.is_group ? c.group_id : c.phone) ? 'checked' : ''}>
-      <div class="contact-avatar ${c.is_group ? 'group' : 'person'}">
-        ${c.is_group ? '<span class="material-icons-round" style="font-size:18px">group</span>' : getInitials(c.name)}
-      </div>
-      <div class="contact-info">
-        <span class="name">${escapeHtml(c.name)}</span>
-        <span class="phone">${c.is_group ? 'Groupe' : c.phone}</span>
-      </div>
-    </div>
-  `).join('');
+// ============================================================
+// Emoji & Formatting Helpers
+// ============================================================
+function insertTextAtCursor(textToInsert) {
+  const textarea = document.getElementById('textContent');
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const val = textarea.value;
+  textarea.value = val.substring(0, start) + textToInsert + val.substring(end);
+  const newPos = start + textToInsert.length;
+  textarea.selectionStart = newPos;
+  textarea.selectionEnd = newPos;
+  textarea.focus();
+  document.getElementById('charCount').textContent = textarea.value.length;
+}
 
+function applyFormatting(format) {
+  const textarea = document.getElementById('textContent');
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selectedText = textarea.value.substring(start, end);
+  
+  let wrapper = '';
+  switch (format) {
+    case 'bold': wrapper = '*'; break;
+    case 'italic': wrapper = '_'; break;
+    case 'strike': wrapper = '~'; break;
+    case 'code': wrapper = '```'; break;
+  }
+  
+  const text = selectedText || 'texte';
+  const replacement = `${wrapper}${text}${wrapper}`;
+  textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+  
+  const newStart = selectedText ? start : start + wrapper.length;
+  const newEnd = selectedText ? start + replacement.length : newStart + 5;
+  textarea.selectionStart = newStart;
+  textarea.selectionEnd = newEnd;
+  textarea.focus();
+  document.getElementById('charCount').textContent = textarea.value.length;
+}
+
+function toggleEmojiPicker() {
+  const panel = document.getElementById('emojiPickerPanel');
+  const isHidden = panel.classList.contains('hidden');
+  if (isHidden) {
+    panel.classList.remove('hidden');
+    renderEmojiGrid(activeEmojiCategory);
+    document.getElementById('emojiSearchInput').focus();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function renderEmojiGrid(category, query = '') {
+  const container = document.getElementById('emojiGridContainer');
+  let list = [];
+
+  if (query) {
+    const all = Object.values(EMOJI_DATA).flat();
+    list = all;
+  } else {
+    list = EMOJI_DATA[category] || EMOJI_DATA.smileys;
+  }
+
+  container.innerHTML = list.map(emoji => `
+    <button type="button" class="emoji-cell" onclick="insertEmojiAndKeepFocus('${emoji}')">${emoji}</button>
+  `).join('');
+}
+
+function insertEmojiAndKeepFocus(emoji) {
+  insertTextAtCursor(emoji);
+}
+
+// ============================================================
+// Compose WhatsApp Contacts Management
+// ============================================================
+function refreshComposeContacts() {
+  // Update count pills
+  const total = contacts.length;
+  const waCount = contacts.filter(c => !c.is_group).length;
+  const groupCount = contacts.filter(c => c.is_group).length;
+
+  const countTotalEl = document.getElementById('countTotalContacts');
+  const countWaEl = document.getElementById('countWaContacts');
+  const countGroupsEl = document.getElementById('countGroups');
+
+  if (countTotalEl) countTotalEl.textContent = total;
+  if (countWaEl) countWaEl.textContent = waCount;
+  if (countGroupsEl) countGroupsEl.textContent = groupCount;
+
+  renderComposeContactItems();
   updateRecipientCount();
 
   // Also update list dropdown
   const listSelect = document.getElementById('selectedList');
-  listSelect.innerHTML = '<option value="">-- Sélectionnez une liste --</option>';
-  contactLists.forEach(l => {
-    listSelect.innerHTML += `<option value="${l.id}">${escapeHtml(l.name)} (${l.members?.length || 0} membres)</option>`;
-  });
+  if (listSelect) {
+    listSelect.innerHTML = '<option value="">-- Sélectionnez une liste --</option>';
+    contactLists.forEach(l => {
+      listSelect.innerHTML += `<option value="${l.id}">${escapeHtml(l.name)} (${l.members?.length || 0} membres)</option>`;
+    });
+  }
 }
 
-function toggleRecipient(el, id) {
+function renderComposeContactItems() {
+  const list = document.getElementById('contactSelectList');
+  if (!list) return;
+
+  const query = (document.getElementById('contactSearch')?.value || '').toLowerCase().trim();
+
+  let filtered = contacts.filter(c => {
+    // Filter by type
+    if (currentContactTypeFilter === 'contacts' && c.is_group) return false;
+    if (currentContactTypeFilter === 'groups' && !c.is_group) return false;
+
+    // Filter by search query
+    if (query) {
+      const name = (c.name || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      return name.includes(query) || phone.includes(query);
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center; padding: 24px 12px; color: var(--text-muted); font-size: 0.85rem;">
+        <span class="material-icons-round" style="font-size: 32px; display: block; margin-bottom: 6px; opacity: 0.6;">search_off</span>
+        ${contacts.length === 0 
+          ? 'Aucun contact WhatsApp disponible.<br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px" onclick="syncWhatsAppContacts(this)"><span class="material-icons-round">sync</span> Synchroniser WhatsApp</button>' 
+          : 'Aucun contact ne correspond à votre recherche.'}
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = filtered.map(c => {
+    const isSelected = selectedRecipients.has(c.id);
+    return `
+      <div class="contact-select-item ${isSelected ? 'selected' : ''}" 
+           data-id="${c.id}"
+           onclick="toggleRecipient('${c.id}')">
+        <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleRecipient('${c.id}')">
+        <div class="contact-avatar ${c.is_group ? 'group' : 'person'}">
+          ${c.is_group ? '<span class="material-icons-round" style="font-size:18px">group</span>' : getInitials(c.name)}
+        </div>
+        <div class="contact-info">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="name">${escapeHtml(c.name)}</span>
+            <span class="contact-badge ${c.is_group ? 'group' : 'wa'}">${c.is_group ? 'Groupe' : 'WhatsApp'}</span>
+          </div>
+          <span class="phone">${c.is_group ? 'Groupe WhatsApp' : (c.phone ? '+' + c.phone.replace(/^\+/, '') : '')}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleRecipient(id) {
   if (selectedRecipients.has(id)) {
     selectedRecipients.delete(id);
-    el.classList.remove('selected');
-    el.querySelector('input').checked = false;
   } else {
-    selectedRecipients.add(id);
-    el.classList.add('selected');
-    el.querySelector('input').checked = true;
+    const c = contacts.find(item => item.id === id);
+    if (c) {
+      selectedRecipients.set(c.id, {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        is_group: c.is_group,
+        group_id: c.group_id
+      });
+    }
   }
+  renderComposeContactItems();
+  updateRecipientCount();
+}
+
+function removeRecipientChip(id) {
+  selectedRecipients.delete(id);
+  renderComposeContactItems();
+  updateRecipientCount();
+}
+
+function selectAllVisibleContacts() {
+  const query = (document.getElementById('contactSearch')?.value || '').toLowerCase().trim();
+  const visible = contacts.filter(c => {
+    if (currentContactTypeFilter === 'contacts' && c.is_group) return false;
+    if (currentContactTypeFilter === 'groups' && !c.is_group) return false;
+    if (query) {
+      const name = (c.name || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      return name.includes(query) || phone.includes(query);
+    }
+    return true;
+  });
+
+  visible.forEach(c => {
+    selectedRecipients.set(c.id, {
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      is_group: c.is_group,
+      group_id: c.group_id
+    });
+  });
+
+  renderComposeContactItems();
+  updateRecipientCount();
+}
+
+function deselectAllVisibleContacts() {
+  const query = (document.getElementById('contactSearch')?.value || '').toLowerCase().trim();
+  const visible = contacts.filter(c => {
+    if (currentContactTypeFilter === 'contacts' && c.is_group) return false;
+    if (currentContactTypeFilter === 'groups' && !c.is_group) return false;
+    if (query) {
+      const name = (c.name || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      return name.includes(query) || phone.includes(query);
+    }
+    return true;
+  });
+
+  visible.forEach(c => selectedRecipients.delete(c.id));
+  renderComposeContactItems();
+  updateRecipientCount();
+}
+
+function clearAllSelectedRecipients() {
+  selectedRecipients.clear();
+  renderComposeContactItems();
   updateRecipientCount();
 }
 
@@ -444,36 +728,69 @@ function updateRecipientCount() {
   let count = selectedRecipients.size;
 
   // Also count manual recipients
-  const manual = document.getElementById('manualRecipients').value.trim();
+  const manual = document.getElementById('manualRecipients')?.value.trim();
   if (manual) {
     count += manual.split('\n').filter(l => l.trim()).length;
   }
 
   // Check selected list
-  const listId = document.getElementById('selectedList').value;
+  const listId = document.getElementById('selectedList')?.value;
   if (listId) {
     const list = contactLists.find(l => l.id === listId);
     if (list) count += list.members?.length || 0;
   }
 
-  document.getElementById('recipientCount').textContent = count;
+  const recipientCountEl = document.getElementById('recipientCount');
+  if (recipientCountEl) recipientCountEl.textContent = count;
+
+  // Render selected chips
+  const chipsContainer = document.getElementById('selectedChips');
+  const clearBtn = document.getElementById('btnClearRecipients');
+  if (chipsContainer) {
+    if (selectedRecipients.size > 0) {
+      if (clearBtn) clearBtn.style.display = 'inline-block';
+      chipsContainer.innerHTML = Array.from(selectedRecipients.values()).map(r => `
+        <span class="recipient-chip">
+          <span class="chip-name">${escapeHtml(r.name)}</span>
+          <button type="button" class="chip-remove" onclick="removeRecipientChip('${r.id}')" title="Retirer">✕</button>
+        </span>
+      `).join('');
+    } else {
+      if (clearBtn) clearBtn.style.display = 'none';
+      chipsContainer.innerHTML = '<span style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">Aucun contact sélectionné</span>';
+    }
+  }
+}
+
+async function syncWhatsAppContacts(btnEl) {
+  const icon = document.getElementById('syncIcon');
+  const text = document.getElementById('syncContactsBtnText');
+  if (icon) icon.classList.add('spin');
+  if (text) text.textContent = 'Synchronisation...';
+  if (btnEl) btnEl.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/api/whatsapp/sync-contacts`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur lors de la synchronisation');
+
+    showToast(`✅ ${data.count} contacts et groupes WhatsApp synchronisés !`, 'success');
+    await loadContacts();
+    refreshComposeContacts();
+  } catch (err) {
+    showToast(`Erreur : ${err.message}`, 'error');
+  } finally {
+    if (icon) icon.classList.remove('spin');
+    if (text) text.textContent = 'Actualiser WhatsApp';
+    if (btnEl) btnEl.disabled = false;
+  }
 }
 
 // Listen for manual input changes
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('manualRecipients').addEventListener('input', updateRecipientCount);
-  document.getElementById('selectedList').addEventListener('change', updateRecipientCount);
+  document.getElementById('manualRecipients')?.addEventListener('input', updateRecipientCount);
+  document.getElementById('selectedList')?.addEventListener('change', updateRecipientCount);
 });
-
-function filterContactList(containerId, query) {
-  const items = document.getElementById(containerId).querySelectorAll('.contact-select-item');
-  const q = query.toLowerCase();
-  items.forEach(item => {
-    const name = item.querySelector('.name').textContent.toLowerCase();
-    const phone = item.querySelector('.phone').textContent.toLowerCase();
-    item.style.display = (name.includes(q) || phone.includes(q)) ? 'flex' : 'none';
-  });
-}
 
 async function handleSubmitMessage(e) {
   e.preventDefault();
@@ -482,7 +799,10 @@ async function handleSubmitMessage(e) {
   const scheduleType = document.querySelector('.schedule-option.active').dataset.schedule;
 
   // Collect recipients
-  const allRecipients = new Set(selectedRecipients);
+  const allRecipients = new Set();
+  selectedRecipients.forEach(r => {
+    allRecipients.add(r.is_group ? (r.group_id || r.id) : (r.phone || r.id));
+  });
 
   // Manual
   const manual = document.getElementById('manualRecipients').value.trim();
@@ -755,6 +1075,7 @@ async function loadContacts() {
     const res = await fetch(`${API}/api/contacts`);
     contacts = await res.json();
     renderContacts();
+    refreshComposeContacts();
   } catch (err) {
     console.error('Error loading contacts:', err);
   }
@@ -1020,17 +1341,13 @@ function initModals() {
     }
   });
 
-  // Sync groups
-  document.getElementById('btnSyncGroups').addEventListener('click', async () => {
-    try {
-      showToast('Synchronisation des groupes...', 'info');
-      await fetch(`${API}/api/sync-groups`, { method: 'POST' });
-      showToast('Groupes synchronisés !', 'success');
-      loadContacts();
-    } catch (err) {
-      showToast('WhatsApp n\'est pas connecté', 'error');
-    }
-  });
+  // Sync WhatsApp contacts & groups
+  const mainSyncBtn = document.getElementById('btnSyncContactsMain') || document.getElementById('btnSyncGroups');
+  if (mainSyncBtn) {
+    mainSyncBtn.addEventListener('click', function() {
+      syncWhatsAppContacts(this);
+    });
+  }
 
   // Add list
   document.getElementById('btnAddList').addEventListener('click', () => {

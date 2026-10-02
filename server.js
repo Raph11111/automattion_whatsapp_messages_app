@@ -131,7 +131,10 @@ function initWhatsApp() {
     console.log('🚀 WhatsApp client is ready!');
     clientStatus = 'ready';
     clientInfo = whatsappClient.info;
-    syncWhatsAppGroups();
+    // Delay slightly to ensure WhatsApp Web page has initialized all modules
+    setTimeout(() => {
+      syncWhatsAppContactsAndGroups().catch(e => console.error('Auto sync error:', e.message));
+    }, 4000);
   });
 
   whatsappClient.on('auth_failure', (msg) => {
@@ -149,20 +152,99 @@ function initWhatsApp() {
   whatsappClient.initialize();
 }
 
-async function syncWhatsAppGroups() {
+async function getWhatsAppContacts() {
+  if (clientStatus !== 'ready' || !whatsappClient) {
+    throw new Error('WhatsApp n\'est pas encore prêt. Veuillez scanner le QR Code ou patienter.');
+  }
+
+  const results = [];
+  const seenIds = new Set();
+
+  // 1. Try to get contacts directly from WhatsApp Web
+  try {
+    const contacts = await whatsappClient.getContacts();
+    for (const c of contacts) {
+      if (!c || !c.id || !c.id._serialized) continue;
+      if (c.id._serialized.includes('status@broadcast')) continue;
+      if (seenIds.has(c.id._serialized)) continue;
+
+      const phone = c.number || (c.id._serialized.includes('@c.us') ? c.id._serialized.replace('@c.us', '') : '');
+      const name = c.name || c.pushname || c.shortName || (phone ? `+${phone}` : 'Contact WhatsApp');
+
+      seenIds.add(c.id._serialized);
+      results.push({
+        id: c.id._serialized,
+        name: name,
+        phone: phone,
+        is_group: c.isGroup ? 1 : 0,
+        group_id: c.isGroup ? c.id._serialized : null,
+        is_my_contact: c.isMyContact ? 1 : 0
+      });
+    }
+  } catch (err) {
+    console.warn('getContacts() had an issue, fallback to getChats():', err.message);
+  }
+
+  // 2. Also ensure all active chats (groups and recent individual chats) are included
   try {
     const chats = await whatsappClient.getChats();
-    const groups = chats.filter(c => c.isGroup);
-    const insertGroup = db.prepare(`
-      INSERT OR REPLACE INTO contacts (id, name, phone, is_group, group_id) 
-      VALUES (?, ?, '', 1, ?)
-    `);
-    for (const group of groups) {
-      insertGroup.run(group.id._serialized, group.name, group.id._serialized);
+    for (const chat of chats) {
+      if (!chat || !chat.id || !chat.id._serialized) continue;
+      if (chat.id._serialized.includes('status@broadcast')) continue;
+
+      if (!seenIds.has(chat.id._serialized)) {
+        seenIds.add(chat.id._serialized);
+        const isGroup = chat.isGroup ? 1 : 0;
+        const phone = isGroup ? '' : (chat.id.user || '');
+        const name = chat.name || (phone ? `+${phone}` : (isGroup ? 'Groupe WhatsApp' : 'Contact'));
+
+        results.push({
+          id: chat.id._serialized,
+          name: name,
+          phone: phone,
+          is_group: isGroup,
+          group_id: isGroup ? chat.id._serialized : null,
+          is_my_contact: 1
+        });
+      } else if (chat.isGroup) {
+        const existing = results.find(r => r.id === chat.id._serialized);
+        if (existing && chat.name) existing.name = chat.name;
+      }
     }
-    console.log(`📋 Synced ${groups.length} WhatsApp groups`);
   } catch (err) {
-    console.error('Error syncing groups:', err);
+    console.warn('getChats() in getWhatsAppContacts:', err.message);
+  }
+
+  return results.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+}
+
+async function syncWhatsAppContactsAndGroups() {
+  try {
+    const list = await getWhatsAppContacts();
+    if (!list || list.length === 0) return [];
+
+    const insertStmt = db.prepare(`
+      INSERT INTO contacts (id, name, phone, is_group, group_id) 
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET 
+        name = excluded.name,
+        phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE contacts.phone END,
+        is_group = excluded.is_group,
+        group_id = excluded.group_id
+    `);
+
+    const syncTransaction = db.transaction((items) => {
+      for (const item of items) {
+        insertStmt.run(item.id, item.name, item.phone || '', item.is_group, item.group_id);
+      }
+    });
+
+    syncTransaction(list);
+    console.log(`📋 Synchronisation WhatsApp : ${list.length} contacts et groupes importés`);
+    return list;
+  } catch (err) {
+    console.error('Erreur synchronisation WhatsApp:', err.message);
+    throw err;
   }
 }
 
@@ -370,14 +452,44 @@ app.delete('/api/contacts/:id', (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
-// --- Sync Groups ---
+// --- WhatsApp Contacts & Sync ---
+app.get('/api/whatsapp/contacts', async (req, res) => {
+  if (clientStatus !== 'ready') {
+    return res.status(400).json({ error: 'WhatsApp non connecté', contacts: [] });
+  }
+  try {
+    const contacts = await getWhatsAppContacts();
+    res.json(contacts);
+  } catch (err) {
+    res.status(500).json({ error: err.message, contacts: [] });
+  }
+});
+
+app.post('/api/whatsapp/sync-contacts', async (req, res) => {
+  if (clientStatus !== 'ready') {
+    return res.status(400).json({ error: 'WhatsApp non connecté. Veuillez scanner le QR Code.' });
+  }
+  try {
+    const list = await syncWhatsAppContactsAndGroups();
+    const allContacts = db.prepare('SELECT * FROM contacts ORDER BY is_group, name').all();
+    res.json({ message: 'Synchronisation réussie', count: list.length, contacts: allContacts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Sync Groups (legacy compatibility) ---
 app.post('/api/sync-groups', async (req, res) => {
   if (clientStatus !== 'ready') {
     return res.status(400).json({ error: 'WhatsApp not ready' });
   }
-  await syncWhatsAppGroups();
-  const groups = db.prepare('SELECT * FROM contacts WHERE is_group = 1').all();
-  res.json(groups);
+  try {
+    await syncWhatsAppContactsAndGroups();
+    const groups = db.prepare('SELECT * FROM contacts WHERE is_group = 1').all();
+    res.json(groups);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // --- Contact Lists ---

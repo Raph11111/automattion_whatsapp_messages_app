@@ -202,9 +202,80 @@
               <div class="card-body">
                 <!-- Text Content -->
                 <div class="form-group" id="textGroup">
-                  <label for="textContent">Message</label>
-                  <textarea id="textContent" rows="5" placeholder="Tapez votre message ici...&#10;&#10;Vous pouvez utiliser le formatage WhatsApp :&#10;*gras*  _italique_  ~barré~  ```code```"></textarea>
-                  <div class="char-count"><span id="charCount">0</span> caractères</div>
+                  <div class="form-header-bar">
+                    <label for="textContent">Message</label>
+                    <div class="editor-toolbar">
+                      <button type="button" class="toolbar-btn" data-format="bold" title="Gras (*texte*)">
+                        <strong>B</strong>
+                      </button>
+                      <button type="button" class="toolbar-btn" data-format="italic" title="Italique (_texte_)">
+                        <em>I</em>
+                      </button>
+                      <button type="button" class="toolbar-btn" data-format="strike" title="Barré (~texte~)">
+                        <s>S</s>
+                      </button>
+                      <button type="button" class="toolbar-btn" data-format="code" title="Code (```texte```)">
+                        <code>&lt;/&gt;</code>
+                      </button>
+                      <span class="toolbar-divider"></span>
+                      <button type="button" class="toolbar-btn emoji-trigger" id="btnEmojiToggle" title="Sélecteur d'émojis">
+                        <span>😊</span> Émojis
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Quick Emojis Bar -->
+                  <div class="quick-emojis-bar" id="quickEmojisBar">
+                    <span class="quick-emojis-label">Rapide :</span>
+                    <div class="quick-emojis-list">
+                      <button type="button" class="quick-emoji-btn">😊</button>
+                      <button type="button" class="quick-emoji-btn">❤️</button>
+                      <button type="button" class="quick-emoji-btn">🎉</button>
+                      <button type="button" class="quick-emoji-btn">🎂</button>
+                      <button type="button" class="quick-emoji-btn">👍</button>
+                      <button type="button" class="quick-emoji-btn">🔥</button>
+                      <button type="button" class="quick-emoji-btn">🙏</button>
+                      <button type="button" class="quick-emoji-btn">✨</button>
+                      <button type="button" class="quick-emoji-btn">🥳</button>
+                      <button type="button" class="quick-emoji-btn">👏</button>
+                      <button type="button" class="quick-emoji-btn">🚀</button>
+                      <button type="button" class="quick-emoji-btn">🍰</button>
+                      <button type="button" class="quick-emoji-btn">🎁</button>
+                      <button type="button" class="quick-emoji-btn">💬</button>
+                    </div>
+                  </div>
+
+                  <!-- Full Emoji Picker Panel -->
+                  <div class="emoji-picker-panel hidden" id="emojiPickerPanel">
+                    <div class="emoji-picker-header">
+                      <div class="emoji-search-box">
+                        <span class="material-icons-round">search</span>
+                        <input type="text" id="emojiSearchInput" placeholder="Rechercher un émoji (anniversaire, rire, cœur...)...">
+                      </div>
+                      <button type="button" class="btn btn-ghost btn-sm" id="btnCloseEmojiPicker">
+                        <span class="material-icons-round">close</span>
+                      </button>
+                    </div>
+                    <div class="emoji-categories-tabs" id="emojiCategoryTabs">
+                      <button type="button" class="emoji-cat-tab active" data-cat="smileys">😀 Sourires</button>
+                      <button type="button" class="emoji-cat-tab" data-cat="gestures">👍 Gestes</button>
+                      <button type="button" class="emoji-cat-tab" data-cat="love">❤️ Cœurs</button>
+                      <button type="button" class="emoji-cat-tab" data-cat="party">🎉 Célébration</button>
+                      <button type="button" class="emoji-cat-tab" data-cat="objects">📌 Symboles</button>
+                    </div>
+                    <div class="emoji-grid-container" id="emojiGridContainer">
+                      <!-- Rendered by JS -->
+                    </div>
+                  </div>
+
+                  <textarea id="textContent" rows="7" placeholder="Tapez votre message ici (sans limite de longueur)...&#10;&#10;Vous pouvez utiliser des émojis et le formatage WhatsApp :&#10;*gras*  _italique_  ~barré~  ```code```"></textarea>
+                  
+                  <div class="content-footer-info">
+                    <span class="char-capacity-hint">
+                      <span class="material-icons-round" style="font-size: 15px; vertical-align: middle;">all_inclusive</span> Longueur illimitée (standard WhatsApp)
+                    </span>
+                    <div class="char-count"><span id="charCount">0</span> caractères</div>
+                  </div>
                 </div>
 
                 <!-- Media Upload -->
@@ -271,7 +342,7 @@
               <div class="card-body">
                 <div class="recipient-tabs">
                   <button type="button" class="tab-btn active" data-tab="manual" id="tabManual">Saisie manuelle</button>
-                  <button type="button" class="tab-btn" data-tab="contacts" id="tabContacts">Contacts</button>
+                  <button type="button" class="tab-btn" data-tab="contacts" id="tabContacts">Contacts WhatsApp</button>
                   <button type="button" class="tab-btn" data-tab="list" id="tabList">Liste de diffusion</button>
                 </div>
                 
@@ -284,14 +355,38 @@
                 </div>
 
                 <div class="tab-content" id="tabContentContacts">
-                  <div class="form-group">
-                    <div class="search-input">
+                  <div class="contacts-selection-header">
+                    <div class="search-input" style="flex: 1;">
                       <span class="material-icons-round">search</span>
-                      <input type="text" id="contactSearch" placeholder="Rechercher un contact ou groupe...">
+                      <input type="text" id="contactSearch" placeholder="Rechercher par nom ou numéro WhatsApp...">
                     </div>
-                    <div class="contact-select-list" id="contactSelectList">
-                      <!-- Filled dynamically -->
+                    <button type="button" class="btn btn-outline btn-sm" id="btnSyncContacts" title="Recharger les contacts depuis votre téléphone">
+                      <span class="material-icons-round" id="syncIcon">sync</span>
+                      <span id="syncContactsBtnText">Actualiser WhatsApp</span>
+                    </button>
+                  </div>
+
+                  <div class="contacts-filter-bar">
+                    <div class="contact-filter-pills">
+                      <button type="button" class="pill-btn active" data-filter="all" id="pillAll">
+                        Tous (<span id="countTotalContacts">0</span>)
+                      </button>
+                      <button type="button" class="pill-btn" data-filter="contacts" id="pillContacts">
+                        Contacts (<span id="countWaContacts">0</span>)
+                      </button>
+                      <button type="button" class="pill-btn" data-filter="groups" id="pillGroups">
+                        Groupes (<span id="countGroups">0</span>)
+                      </button>
                     </div>
+                    <div class="contacts-selection-actions">
+                      <button type="button" class="link-btn" id="btnSelectAllContacts">Tout sélectionner</button>
+                      <span class="action-divider">•</span>
+                      <button type="button" class="link-btn" id="btnDeselectAllContacts">Tout désélectionner</button>
+                    </div>
+                  </div>
+
+                  <div class="contact-select-list" id="contactSelectList">
+                    <!-- Filled dynamically -->
                   </div>
                 </div>
 
@@ -304,8 +399,18 @@
                   </div>
                 </div>
 
-                <div class="selected-recipients" id="selectedRecipients">
-                  <span class="recipients-count"><span id="recipientCount">0</span> destinataire(s) sélectionné(s)</span>
+                <!-- Selected recipients chips box -->
+                <div class="selected-recipients-box" id="selectedRecipientsBox">
+                  <div class="selected-recipients-header">
+                    <span class="recipients-count">
+                      <span class="material-icons-round">check_circle</span>
+                      <span id="recipientCount">0</span> destinataire(s) sélectionné(s)
+                    </span>
+                    <button type="button" class="btn btn-ghost btn-sm text-danger" id="btnClearRecipients" style="display: none;">
+                      Tout effacer
+                    </button>
+                  </div>
+                  <div class="selected-chips" id="selectedChips"></div>
                 </div>
               </div>
             </div>
@@ -424,8 +529,8 @@
               <p class="page-subtitle">Gérez vos contacts et groupes WhatsApp</p>
             </div>
             <div class="page-actions">
-              <button class="btn btn-outline" id="btnSyncGroups">
-                <span class="material-icons-round">sync</span> Synchroniser groupes
+              <button class="btn btn-outline" id="btnSyncContactsMain">
+                <span class="material-icons-round">sync</span> Synchroniser WhatsApp
               </button>
               <button class="btn btn-primary" id="btnAddContact">
                 <span class="material-icons-round">person_add</span> Ajouter
