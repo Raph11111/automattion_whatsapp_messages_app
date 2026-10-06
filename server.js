@@ -155,6 +155,14 @@ function initWhatsApp() {
     console.log('✅ WhatsApp authenticated!');
     clientStatus = 'authenticated';
     qrCodeData = null;
+    // 'ready' sometimes never fires after authentication; restart the client if so
+    const client = whatsappClient;
+    setTimeout(() => {
+      if (client === whatsappClient && clientStatus === 'authenticated') {
+        console.log('⚠️ Client stuck before ready, restarting...');
+        initWhatsApp();
+      }
+    }, 90000);
   });
 
   whatsappClient.on('ready', () => {
@@ -207,7 +215,7 @@ async function getWhatsAppContacts() {
       if (c.id._serialized.includes('status@broadcast')) continue;
       if (seenIds.has(c.id._serialized)) continue;
 
-      const phone = c.number || (c.id._serialized.includes('@c.us') ? c.id._serialized.replace('@c.us', '') : '');
+      const phone = c.id._serialized.endsWith('@c.us') ? c.id._serialized.replace('@c.us', '') : '';
       const name = c.name || c.pushname || c.shortName || (phone ? `+${phone}` : 'Contact WhatsApp');
 
       seenIds.add(c.id._serialized);
@@ -234,7 +242,7 @@ async function getWhatsAppContacts() {
       if (!seenIds.has(chat.id._serialized)) {
         seenIds.add(chat.id._serialized);
         const isGroup = chat.isGroup ? 1 : 0;
-        const phone = isGroup ? '' : (chat.id.user || '');
+        const phone = (isGroup || chat.id._serialized.endsWith('@lid')) ? '' : (chat.id.user || '');
         const name = chat.name || (phone ? `+${phone}` : (isGroup ? 'Groupe WhatsApp' : 'Contact'));
 
         results.push({
@@ -254,6 +262,30 @@ async function getWhatsAppContacts() {
     console.warn('getChats() in getWhatsAppContacts:', err.message);
   }
 
+  // @lid ids carry an anonymous identifier, not the phone number
+  const lidItems = results.filter(r => r.id.endsWith('@lid'));
+  if (lidItems.length) {
+    try {
+      const phoneByLid = await whatsappClient.pupPage.evaluate((ids) => {
+        const { createWid } = window.require('WAWebWidFactory');
+        const { getPhoneNumber } = window.require('WAWebApiContact');
+        const out = {};
+        for (const id of ids) {
+          try {
+            const pn = getPhoneNumber(createWid(id));
+            if (pn && pn.user) out[id] = pn.user;
+          } catch (_) {}
+        }
+        return out;
+      }, lidItems.map(r => r.id));
+      for (const r of lidItems) {
+        if (phoneByLid[r.id]) r.phone = phoneByLid[r.id];
+      }
+    } catch (err) {
+      console.warn('LID -> phone resolution failed:', err.message);
+    }
+  }
+
   return results.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 }
 
@@ -267,7 +299,7 @@ async function syncWhatsAppContactsAndGroups() {
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET 
         name = excluded.name,
-        phone = CASE WHEN excluded.phone != '' THEN excluded.phone ELSE contacts.phone END,
+        phone = CASE WHEN excluded.phone != '' OR contacts.id LIKE '%@lid' OR contacts.id LIKE '%@c.us' THEN excluded.phone ELSE contacts.phone END,
         is_group = excluded.is_group,
         group_id = excluded.group_id
     `);
@@ -304,6 +336,13 @@ async function sendMessage(scheduledMsg) {
       // If it's a phone number (not a group), format it
       if (!chatId.includes('@')) {
         chatId = `${chatId.replace(/\D/g, '')}@c.us`;
+      }
+
+      // Resolve the LID WhatsApp requires for direct chats
+      if (chatId.endsWith('@c.us')) {
+        const wid = await whatsappClient.getNumberId(chatId);
+        if (!wid) throw new Error('Numéro non enregistré sur WhatsApp');
+        chatId = wid._serialized;
       }
 
       switch (scheduledMsg.type) {
@@ -366,6 +405,7 @@ const activeCronJobs = new Map();
 function initScheduler() {
   // Check for pending one-time messages every 30 seconds
   setInterval(() => {
+    if (clientStatus !== 'ready') return; // keep due messages pending until WhatsApp is ready
     const now = new Date();
     const pending = db.prepare(`
       SELECT * FROM scheduled_messages 

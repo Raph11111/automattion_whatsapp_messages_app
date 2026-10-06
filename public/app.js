@@ -815,7 +815,7 @@ async function handleSubmitMessage(e) {
   if (listId) {
     const list = contactLists.find(l => l.id === listId);
     if (list && list.members) {
-      list.members.forEach(m => allRecipients.add(m.is_group ? m.group_id : m.phone));
+      list.members.forEach(m => allRecipients.add(m.is_group ? m.group_id : (m.phone || m.id)));
     }
   }
 
